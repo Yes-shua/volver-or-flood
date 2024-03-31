@@ -1,4 +1,4 @@
--- [[
+--[[
 
 Open Source
 Créditos: Josuel - Yes_shua - Yes-shua
