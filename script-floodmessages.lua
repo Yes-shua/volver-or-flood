@@ -1,76 +1,193 @@
---[[
+-- ══════════════════════════════════════
+--               Core                
+-- ══════════════════════════════════════
+local Find = function(Table) for i,v in pairs(Table or {}) do if typeof(v) == 'table' then return v end; end; end
+local Options = Find(({...})) or {
+    Keybind = 'Home',
 
-Open Source
-Créditos: Josuel - Yes_shua - Yes-shua
-Versão: Alfa 0.1
+    Language = {
+        UI = 'pt-br',
+        Words = 'pt-br'
+    },
 
-]]
+    Experiments = { },
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
+    Tempo = 0.6,
+    Rainbow = false,
+}
+local Version = '1.5'
+local Parent = game:GetService('CoreGui');
+local require = function(Name)
+    return loadstring(game:HttpGet(('https://raw.githubusercontent.com/Zv-yz/AutoJJs/main/%s.lua'):format(Name)))()
+end
 
-local ToggleGui = Instance.new("ScreenGui")
-ToggleGui.Name = "ToggleGui_MS"
-ToggleGui.Parent = game.CoreGui
+-- ══════════════════════════════════════
+--              Services                
+-- ══════════════════════════════════════
+local TweenService = game:GetService('TweenService')
+local Players = game:GetService('Players')
+local LP = Players.LocalPlayer
 
-local Toggle = Instance.new("TextButton")
-Toggle.Name = "Toggle"
-Toggle.Parent = ToggleGui
-Toggle.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
-Toggle.BackgroundTransparency = 0.660
-Toggle.Position = UDim2.new(0, 0, 0.454706937, 0)
-Toggle.Size = UDim2.new(0.0650164187, 0, 0.0888099447, 0)
-Toggle.Font = Enum.Font.SourceSans
-Toggle.Text = "MSender"
-Toggle.TextScaled = true
-Toggle.TextColor3 = Color3.fromRGB(40, 40, 40)
-Toggle.TextSize = 24.000
-Toggle.TextXAlignment = Enum.TextXAlignment.Left
-Toggle.Active = true
-Toggle.Draggable = true
+-- ══════════════════════════════════════
+--              Modules                
+-- ══════════════════════════════════════
+local UI = require("UI")
+local Notification = require("Notification")
 
-Toggle.MouseButton1Click:Connect(function()
-    local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Vcsk/UI-Library/main/Source/MyUILib(Unamed).lua"))();
-    local Window = Library:Create("MSender")
-    
-    local frame = Window:Tab("Message", "rbxassetid://10888331510")
-    
-    frame:InfoLabel("Type a message and send.")
-    
-    frame:Section("Message Settings")
-    
-    local messageTextBox = frame:TextBox("Message", function(value)
-        getgenv().message = value
+local Extenso = require("Modules/Extenso")
+local Character = require("Modules/Character")
+local RemoteChat = require("Modules/RemoteChat")
+local Request = require("Modules/Request")
+
+-- ══════════════════════════════════════
+--              Constants                
+-- ══════════════════════════════════════
+local Char = Character.new(LP)
+local UIElements = UI.UIElements;
+
+local Threading;
+local FinishedThread = false;
+local Toggled = false;
+local Settings = {
+    Keybind = Options.Keybind or 'Home',
+    Started = false,
+    Jump = false,
+    Config = {
+        Start = nil,
+        End = nil,
+        Prefix = nil,
+    }
+}
+
+-- ══════════════════════════════════════
+--              Functions                
+-- ══════════════════════════════════════
+local function ListenChange(Obj)
+    if Obj:GetAttribute('OnlyNumber') then
+        Obj:GetPropertyChangedSignal('Text'):Connect(function()
+            Obj.Text = Obj.Text:gsub("[^%d]", "")
+        end)
+    end
+    Obj.FocusLost:Connect(function()
+        local CurrentText = Obj.Text
+        if not CurrentText or string.match(CurrentText, "^%s*$") then return end
+        Settings.Config[Obj.Parent.Name] = Obj.Text
     end)
-    
-    local quantityTextBox = frame:TextBox("Quantity", function(value)
-        getgenv().quantity = tonumber(value) or 1
-    end)
-    
-    local delayTextBox = frame:TextBox("Delay (s)", function(value)
-        getgenv().delay = tonumber(value)
-    end)
-    
-    local sendButton = frame:Button("Send Message", function()
-        local message = getgenv().message or ""
-        local quantity = getgenv().quantity or 1
-        local delay = getgenv().delay
-    
-        for i = 1, quantity do
-            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-            wait(delay)
+end
+
+local function EndThread(success)
+    if Threading then
+        if not FinishedThread then task.cancel(Threading) end
+        Threading = nil
+        FinishedThread = false
+        Settings["Started"] = false
+        Notification:Notify(success and 6 or 12, nil, nil, nil)
+    end
+end
+
+local function DoJJ(n, prefix, jump)
+    local success, extenso = Extenso:Convert(n)
+    local prefix = prefix and prefix or ''
+    if success then
+        --> Em minha opiniao, esse codigo ta horrivel - Zv_yz
+        if jump then Char:Jump() end
+        if table.find(Options.Experiments, 'hell_jacks_2024_02-dev') then
+            for i = 1, #extenso do
+                if jump then Char:Jump() end
+                RemoteChat:Send(('%s'):format(extenso:sub(i, i)))
+                task.wait(Options.Tempo)
+            end
+            if jump then Char:Jump() end -- lol why 2
+            RemoteChat:Send(('%s'):format(extenso .. prefix))
+        else
+            RemoteChat:Send(('%s'):format(extenso .. prefix))
         end
-    end)
-    
-    sendButton.MouseButton1Click:Connect(function()
-        local message = messageTextBox.Text
-        local quantity = tonumber(quantityTextBox.Text)
-        local delay = tonumber(delayTextBox.Text)
-    
-        for i = 1, quantity do
-            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All")
-            wait(delay)
+    end
+end
+
+local function StartThread()
+    local Config = Settings.Config;
+    if not Config["Start"] or not Config["End"] then return end
+    if Threading then EndThread(false) return end
+    Notification:Notify(5, nil, nil, nil)
+    Threading = task.spawn(function()
+        for i = Config.Start, Config.End do
+            --> bro wth, this code looks so bad :sob: - Zv_yz
+            if table.find(Options.Experiments, 'hell_jacks_2024_02-dev') then
+                DoJJ(i, Config["Prefix"], Settings["Jump"])
+            else
+                task.spawn(DoJJ, i, Config["Prefix"], Settings["Jump"])
+            end
+            if i ~= tonumber(Config.End) then task.wait(Options.Tempo) end;
         end
+        FinishedThread = true
+        EndThread(true)
     end)
+end
+
+local function GetLanguage(Lang)
+    local Success, Result = pcall(function()
+        return require(('I18N/%s'):format(Lang))
+    end)
+    if Success then
+        return Result
+    end
+    return {}
+end
+
+local function MigrateSettings()
+    local Lang = Options['Language'];
+    local Experiments = Options['Experiments'];
+    if not Experiments then
+        Options['Experiments'] = {};
+    end
+    if typeof(Lang) == 'string' then
+        Options['Language'] = { UI = Lang, Words = Lang };
+    end
+end
+
+MigrateSettings()
+
+-- ══════════════════════════════════════
+--                Main                
+-- ══════════════════════════════════════
+UI:SetVersion(Version)
+UI:SetLanguage(Options.Language.UI)
+UI:SetRainbow(Options.Rainbow)
+UI:SetParent(Parent)
+
+Notification:SetParent(UI.getUI())
+Notification:SetLang(GetLanguage(Options.Language.UI))
+Extenso:SetLang(GetLanguage(Options.Language.Words))
+
+for i,v in pairs(UIElements["Box"]) do
+    ListenChange(v)
+end
+
+UIElements["Circle"].MouseButton1Click:Connect(function()
+    if Toggled then
+        Settings["Jump"] = false
+        Toggled = false
+        TweenService:Create(UIElements["Circle"], TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = UDim2.new(0.22, 0, 0.5, 0) }):Play()
+        TweenService:Create(UIElements["Slide"], TweenInfo.new(0.3), { BackgroundColor3 = Color3.fromRGB(20, 20, 20) }):Play()
+    else
+        Settings["Jump"] = true
+        Toggled = true
+        TweenService:Create(UIElements["Circle"], TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = UDim2.new(0.772, 0, 0.5, 0) }):Play()
+        TweenService:Create(UIElements["Slide"], TweenInfo.new(0.3), { BackgroundColor3 = Color3.fromRGB(37, 150, 255) }):Play()
+    end
 end)
+
+UIElements["Play"].MouseButton1Up:Connect(function()
+    if not Settings.Config["Start"] or not Settings.Config["End"] then return end
+    if not Settings["Started"] then
+        Settings["Started"] = true
+        StartThread()
+    else
+        Settings["Started"] = false
+        EndThread(false)
+    end
+end)
+
+Notification:SetupJJs(Options.Experiments)
+Request:Post('https://scripts-zvyz.glitch.me/api/count')
